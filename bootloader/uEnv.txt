@@ -1,0 +1,2 @@
+bootargs=console=ttyO0,115200n8 root=/dev/ram0 rw rootfstype=ext2 init=/linuxrc initrd=0x88080000,32M ramdisk_size=32768
+uenvcmd=mmc dev 0; load mmc 0:1 0x80200000 uImage;load mmc 0:1 0x88080000 ramdisk.gz; bootm
