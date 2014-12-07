@@ -6,6 +6,7 @@
 #include <linux/fs.h> //alloc_chrdev_region(), file_operations
 #include <asm/uaccess.h> // copy_from_user()
 #include <linux/slab.h> // kmalloc()
+#include <linux/proc_fs.h> // create_proc_entry()
 //#include <linux/moduleparam.h>
 //#include <linux/kernel.h>
 //#include <linux/irq.h>
@@ -36,6 +37,7 @@ struct simple_dev {
         struct semaphore sem;
         struct class *class;
         char *user_buff;
+        long val;
 };
 
 static struct simple_dev reset_btn_dev;
@@ -49,111 +51,191 @@ static irqreturn_t reset_button_irq_handler(int irq, void *dev_id)
     //printk(KERN_DEBUG "interrupt received (irq: %d)\n", irq);
     if (irq == gpio_to_irq(RESET_BTN_GPIO)) {
 	irq_counter++;
-        printk("%s: you press button %d times, gpio pin is %d\n", RESET_BTN_GPIO_NAME, irq_counter, gpio_get_value(RESET_BTN_GPIO));
+	reset_btn_dev.val = irq_counter;
+        printk(KERN_DEBUG "%s: you press button %d times, gpio pin is %d\n", RESET_BTN_GPIO_NAME, irq_counter, gpio_get_value(RESET_BTN_GPIO));
     }
     return IRQ_HANDLED;
 }
 
 static int reset_btn_cdev_open(struct inode *inode, struct file *filp)
 {	
+	struct simple_dev *sdev;
 	int status = 0; 
-	printk("%s\n",__func__);    
-	if (!reset_btn_dev.user_buff) { 
-		reset_btn_dev.user_buff = kmalloc(USER_BUFF_SIZE, GFP_KERNEL); 	
+	//printk("%s\n",__func__);    
+	sdev = container_of(inode->i_cdev, struct simple_dev, cdev);
+	//push to private_data
+	filp->private_data = sdev;
+
+	if (!sdev->user_buff) { 
+		sdev->user_buff = kmalloc(USER_BUFF_SIZE, GFP_KERNEL); 	
 	}
-	if (!reset_btn_dev.user_buff) { 
+	if (!sdev->user_buff) { 
 		printk("%s: user_buff alloc failed\n", __func__); 
 		status = -ENOMEM; 
 	} 
 	//add semaphore for read/write
-	up(&reset_btn_dev.sem); 
-	//
+	up(&sdev->sem); 
 	return status;
 }
+
+static int reset_btn_cdev_release(struct inode* inode , struct file* filp ) {
+    struct simple_dev *sdev;
+    sdev = container_of(inode->i_cdev, struct simple_dev, cdev);
+    filp->private_data = NULL;
+    if (down_interruptible(&sdev->sem)){
+           return -ERESTARTSYS;
+    }
+    return 0;
+}
+
 static ssize_t reset_btn_cdev_read(struct file *filp, char __user *buff, size_t count, loff_t *offp)
 {
-	size_t len; 
-	ssize_t status = 0; 
-//	memset(reset_btn_dev.user_buff, 0, USER_BUFF_SIZE); 
-	printk("%s\n",__func__);    
-
-	//Generic user progs like cat will continue calling until we return zero. 
-	//So if *offp != 0, we know this is at least the second call. 
-	if (*offp > 0) {
-		printk("offp > %d\n",(int)*offp);    
+	struct simple_dev * sdev = filp->private_data;
+        ssize_t status = 0;
+        int len;
+	//printk("%s\n",__func__);    
+	if (*offp >= strlen(sdev->user_buff)){
+		//printk("finish read %d bytes\n",(int)*offp);    
 		return 0; 
 	}
-
-	//
-	if (down_interruptible(&reset_btn_dev.sem)){ 
+	if (down_interruptible(&sdev->sem)){ 
 		return -ERESTARTSYS; 
 	}
-	strcpy(reset_btn_dev.user_buff, "fpga driver data goes here\n"); 
-	len = strlen(reset_btn_dev.user_buff);
-        printk("len=%d,count=%d, *offp=%d\n",len,count,(int)*offp);    
-	if (copy_to_user(buff, reset_btn_dev.user_buff, len)) { 
+	len = sprintf(sdev->user_buff, "GPIO is %d ,the count is %ld\n", gpio_get_value(RESET_BTN_GPIO), sdev->val);
+	// copy data to buff,    sdev->user_buff ---> buff
+	if (copy_to_user(buff, sdev->user_buff, len)) { 
 		status = -EFAULT; 
 		return status; 
-	} 
-	up(&reset_btn_dev.sem); 
-
+	}
+	status = len; 
+	*offp += len;
+	up(&sdev->sem); 
 	return status; 
-
-/*
-if (len > count) 
-len = count; 
-// int i,tmp; 	
-	return buff_len;
-*/
 }
 
 static ssize_t reset_btn_cdev_write(struct file *filp, const char __user *buff, size_t count, loff_t *f_pos)
 {
-	ssize_t status = count; 
+	struct simple_dev * sdev = filp->private_data;
+	ssize_t status = 0; 
 	size_t len = USER_BUFF_SIZE - 1; 
 	if (count == 0) {
 		return 0;
 	}
-
 	//down semaphore 
-	if (down_interruptible(&reset_btn_dev.sem)) {	
+	if (down_interruptible(&sdev->sem)) {	
 		return -ERESTARTSYS; 
 	} 
 	if (len > count) {
 		len = count; 
 	}
-
-	memset(reset_btn_dev.user_buff, 0, USER_BUFF_SIZE); 
-
-	if (copy_from_user(reset_btn_dev.user_buff, buff, len)) { 
+	// echo X > /dev/dev_node, buff = X
+	// copy_from_user(A,B,size) = A <---- B
+	if (copy_from_user(sdev->user_buff, buff, len)) { 
 		status = -EFAULT; 
 	}
+	//before convert str to int , need remove newline in the end
+	sdev->user_buff[count] = '\0';
+	//convert str to int like atoi
+	status = kstrtol(sdev->user_buff,0,&sdev->val);
 	// echo will send data and newline	 
-	printk("%s: %s\n",__func__,reset_btn_dev.user_buff);
+	printk("%s: set sdev->val=%ld\n",__func__,sdev->val);
 	//back the semaphore
-	up(&reset_btn_dev.sem);  
+	up(&sdev->sem);  
+	status = count;
 	return status; 
 }
 
 static const struct file_operations reset_btn_fops = {
         .owner = THIS_MODULE,
         .open = reset_btn_cdev_open,
+        .release = reset_btn_cdev_release,
         .read = reset_btn_cdev_read,
         .write = reset_btn_cdev_write,
 };
 
+
+
+static ssize_t reset_btn_val_show(struct device* dev, struct device_attribute* attr, char* buf ) {
+    struct simple_dev *sdev = (struct simple_dev*) dev_get_drvdata(dev);       
+    long val = 0;       
+    if(down_interruptible(&(sdev->sem))) {               
+         return - ERESTARTSYS;       
+    }       
+    val = sdev->val;        
+    up(&(sdev->sem));      
+    return sprintf(buf, "GPIO is %d the count is %ld\n", gpio_get_value(RESET_BTN_GPIO),val);
+return 0;
+}
+
+static ssize_t reset_btn_val_store(struct device* dev, struct device_attribute* attr, const char * buf, size_t count) {
+    struct simple_dev *sdev = (struct simple_dev*) dev_get_drvdata(dev);       
+    int val = 0;         
+    val = simple_strtol(buf, NULL, 10 );
+    if(down_interruptible(&(sdev->sem))) { 
+         return - ERESTARTSYS;
+    }
+    sdev->val = val;
+    up(&(sdev->sem));
+    return count;
+}
+
+
+
+//asign dev_attr_reset_btn_val
+static DEVICE_ATTR(reset_btn_val, S_IRUGO | S_IWUSR, reset_btn_val_show, reset_btn_val_store);
+
+
+static ssize_t reset_btn_proc_read(char* page , char ** start, off_t off, int count, int * eof, void * data) {
+    int val = 0;
+    if(off > 0) {
+         *eof = 1 ;
+         return 0 ;
+    }
+    if(down_interruptible(&(reset_btn_dev.sem))) {
+         return - ERESTARTSYS;
+    }
+    val = reset_btn_dev.val;
+    up(&(reset_btn_dev.sem));
+    return sprintf(page, "GPIO is %d the val is %d\n",gpio_get_value(RESET_BTN_GPIO), val);
+}
+
+static ssize_t reset_btn_proc_write(struct file* filp, const char __user *buff, unsigned long len, void* data ) {
+    int status = 0; 
+    char* page = NULL;
+    int val = 0;
+    if(len > PAGE_SIZE ) {
+        printk (KERN_ALERT"The buff is too large: %lu.\n" , len);
+         return - EFAULT;
+    }
+    page = (char*) __get_free_page(GFP_KERNEL);
+    if(!page) {               
+        printk("Failed to alloc page.\n" );
+         return -ENOMEM;
+    }      
+    if(copy_from_user(page , buff, len)) {
+        printk ("Failed to copy buff from user.\n" );               
+        status = -EFAULT;
+        goto out;
+    }
+    val = simple_strtol(page, NULL, 10);
+    if(down_interruptible(&(reset_btn_dev.sem))) {
+         return - ERESTARTSYS;
+    }
+    reset_btn_dev.val = val;
+    up(&(reset_btn_dev.sem));
+    status = len;
+out:
+    free_page((unsigned long )page);
+    return status ;
+}
+
+
+
 static int reset_btn_init(void)
 {
     int result;
-/*    dev_t reset_btn_devt;
-    struct cdev reset_btn_cdev;
-    static const struct file_operations reset_btn_fops = {
-	.owner = THIS_MODULE,
-	.open =	reset_btn_cdev_open,	
-	.read =	reset_btn_cdev_read,
-	.write = reset_btn_cdev_write,
-    };
-    struct class *reset_btn_class;*/
+    struct proc_dir_entry *reset_btn_entry;
+    struct device *tmp = NULL;
     printk("%s\n", __func__);
     if( (result = gpio_is_valid(RESET_BTN_GPIO)) == 1){
 	gpio_free(RESET_BTN_GPIO);
@@ -178,8 +260,10 @@ static int reset_btn_init(void)
 	
     printk("%s: GPIO %d Mapped int %d\n",RESET_BTN_GPIO_NAME , RESET_BTN_GPIO , irq_num);
 //IRQF_TRIGGER_HIGH
+//IRQF_TRIGGER_LOW 
+//IRQF_TRIGGER_RISING 
 //IRQF_TRIGGER_FALLING 
-    if ((result = request_irq(irq_num, (irq_handler_t)reset_button_irq_handler, IRQF_TRIGGER_HIGH| IRQF_TRIGGER_FALLING , RESET_BTN_GPIO_NAME, NULL)) != 0) {
+    if ((result = request_irq(irq_num, (irq_handler_t)reset_button_irq_handler, IRQF_TRIGGER_RISING| IRQF_TRIGGER_FALLING , RESET_BTN_GPIO_NAME, NULL)) != 0) {
       printk("%s: Irq Request failure\n", RESET_BTN_GPIO_NAME);
       return -1;
    }
@@ -223,12 +307,28 @@ static int reset_btn_init(void)
     // subsystem ---> ../../../../class/reset_btn_class
     // in /sys/class/reset_btn_class folder, reset_key -> ../../devices/virtual/reset_btn_class/reset_key
    //printk("device create \n");
-    device_create(reset_btn_dev.class, NULL, reset_btn_dev.devt, NULL, "reset_key");     
+    tmp = device_create(reset_btn_dev.class, NULL, reset_btn_dev.devt, "%s", "reset_key"); 
+    // create /sys/devices/virtual/reset_btn_class/reset_key/reset_btn_val
+    result = device_create_file (tmp, &dev_attr_reset_btn_val);
+    if(result < 0) {
+        printk ("Failed to create attribute val." );               
+         return -1;     
+    }
+
+    //save reset_btn_dev for reset_btn_val_show() and reset_btn_val_store()    
+    dev_set_drvdata(tmp, &reset_btn_dev);
+    //create proc
+    reset_btn_entry = create_proc_entry("reset_btn", 0, NULL);
+    if(reset_btn_entry) {
+        reset_btn_entry->read_proc = reset_btn_proc_read;
+        reset_btn_entry->write_proc = reset_btn_proc_write;
+    }
     return 0;
 }
 
 static void reset_btn_exit(void)
 {
+	remove_proc_entry("reset_btn", NULL);
 	device_destroy(reset_btn_dev.class, reset_btn_dev.devt); 
 	class_destroy(reset_btn_dev.class); 
 
@@ -240,8 +340,8 @@ static void reset_btn_exit(void)
 	//iounmap(fpga_base); 
 
 	//release_mem_region(mem_base, SZ_2K); 
-   free_irq(gpio_to_irq(RESET_BTN_GPIO), NULL);
-   gpio_free(RESET_BTN_GPIO);
+	free_irq(gpio_to_irq(RESET_BTN_GPIO), NULL);
+	gpio_free(RESET_BTN_GPIO);
 	if (reset_btn_dev.user_buff) {
 		kfree(reset_btn_dev.user_buff); 
 	} 
