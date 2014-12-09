@@ -1,0 +1,11 @@
+Module.symvers
+System.map
+.*
+*.o
+*.cmd
+*.order
+*.builtin
+toolchain/gcc-linaro-arm-linux-gnueabihf-4.8-2014.04_linux/
+am335/vmlinux
+am335/arch/arm/include/generated/
+am335/include/generated/

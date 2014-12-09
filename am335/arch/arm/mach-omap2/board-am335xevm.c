@@ -2799,8 +2799,45 @@ static void __init am33xx_cpuidle_init(void)
 
 }
 
+static struct pinmux_config neo_wifi_pin_mux[] = {
+        {"gpmc_ad12.mmc2_dat0", OMAP_MUX_MODE3 | AM33XX_PIN_INPUT_PULLUP },
+        {"gpmc_ad13.mmc2_dat1", OMAP_MUX_MODE3 | AM33XX_PIN_INPUT_PULLUP },
+        {"gpmc_ad14.mmc2_dat2", OMAP_MUX_MODE3 | AM33XX_PIN_INPUT_PULLUP },
+        {"gpmc_ad15.mmc2_dat3", OMAP_MUX_MODE3 | AM33XX_PIN_INPUT_PULLUP},
+        {"gpmc_csn3.mmc2_cmd", OMAP_MUX_MODE3 | AM33XX_PIN_INPUT_PULLUP},
+        {"gpmc_clk.mmc2_clk", OMAP_MUX_MODE3 | AM33XX_PIN_INPUT_PULLUP },
+        {NULL, 0},
+};
+
+static int neo_wl_set_power(struct device *dev , int slot , int on, int vdd)
+{
+        int pad_mux_value ;
+
+        if ( on ) {
+                gpio_direction_output( am335xevm_wlan_data .wlan_enable_gpio , 1 );
+                /* Enable pullup on the WLAN enable pin for keeping wlan active during suspend
+                   in wowlan mode */
+                        pad_mux_value = readl( AM33XX_CTRL_REGADDR (AM33XX_CONTROL_PADCONF_GPMC_CSN0_OFFSET ));
+                        pad_mux_value &= (~ AM33XX_PULL_DISA );
+                        writel ( pad_mux_value , AM33XX_CTRL_REGADDR( AM33XX_CONTROL_PADCONF_GPMC_CSN0_OFFSET ));
+                mdelay ( 70);
+        } else {
+                gpio_direction_output( am335xevm_wlan_data .wlan_enable_gpio , 0 );
+                /* Disable pullup on the WLAN enable when WLAN is off */
+                        pad_mux_value = readl( AM33XX_CTRL_REGADDR (AM33XX_CONTROL_PADCONF_GPMC_CSN0_OFFSET ));
+                        pad_mux_value |= AM33XX_PULL_DISA ;
+                        writel ( pad_mux_value , AM33XX_CTRL_REGADDR( AM33XX_CONTROL_PADCONF_GPMC_CSN0_OFFSET ));
+         }
+        return 0 ;
+}
+
+
 static void __init am335x_evm_init(void)
 {
+	struct device *dev;
+        struct omap_mmc_platform_data *pdata;
+
+
 	am33xx_cpuidle_init();
 	am33xx_mux_init(board_mux);
 	omap_serial_init();
@@ -2822,9 +2859,45 @@ static void __init am335x_evm_init(void)
 //        setup_pin_mux(mmc0_cd_only_pin_mux);
 	printk("\033[31m [NEO_DEBUG] %s\033[0m\n", "ready to set mmc0_wp_only_pin_mux");
         setup_pin_mux(mmc0_wp_only_pin_mux);
+//
+	setup_pin_mux(neo_wifi_pin_mux);
+        am335x_mmc [2]. mmc = 3 ;               
+        am335x_mmc [2]. name = "wl1271" ;
+        am335x_mmc [2]. caps = MMC_CAP_4_BIT_DATA | MMC_CAP_POWER_OFF_CARD;
+        am335x_mmc [2]. nonremovable = true ;
+        am335x_mmc [2]. gpio_cd = - EINVAL;
+        am335x_mmc [2]. gpio_wp = - EINVAL;
+        am335x_mmc [2]. ocr_mask = MMC_VDD_32_33 | MMC_VDD_33_34 ; /* 3V3 */
+//---------------------------------------
 	printk("\033[31m [NEO_DEBUG] %s\033[0m\n", "ready to call omap2_hsmmc_init(am335x_mmc)");
         omap2_hsmmc_init(am335x_mmc);
- 
+//---------------------------------------        
+	am335xevm_wlan_data.wlan_enable_gpio = GPIO_TO_PIN(1, 29);
+        am335xevm_wlan_data.bt_enable_gpio = GPIO_TO_PIN(3, 21);
+        am335xevm_wlan_data.irq = OMAP_GPIO_IRQ(AM335XEVM_SK_WLAN_IRQ_GPIO);
+        setup_pin_mux(wl12xx_pin_mux_sk);
+	am335xevm_wlan_data.platform_quirks = WL12XX_PLATFORM_QUIRK_EDGE_IRQ;
+	if (wl12xx_set_platform_data(&am335xevm_wlan_data)){
+		printk("\033[31m [NEO_DEBUG] %s\033[0m\n", "wl12xx_set_platform_data() Fail");
+	}
+	 dev = am335x_mmc[2].dev;
+        if (!dev) {
+		printk("\033[31m [NEO_DEBUG] %s\033[0m\n", "no dev");
+        }
+
+        pdata = dev->platform_data;
+        if (!pdata) {
+		printk("\033[31m [NEO_DEBUG] %s\033[0m\n", "no pdata");
+        }
+
+        if (gpio_request_one(am335xevm_wlan_data.wlan_enable_gpio, GPIOF_OUT_INIT_LOW, "wlan_en")) {
+		printk("\033[31m [NEO_DEBUG] %s\033[0m\n", "gpio_request_one() fail");
+        }
+	pdata->slots[0].set_power = neo_wl_set_power;
+	printk("\033[31m [NEO_DEBUG] am335x_evm_get_id()=%d, and EVM_SK=%d\033[0m\n", am335x_evm_get_id(), EVM_SK);
+//
+
+
 	omap_sdrc_init(NULL, NULL);
 	usb_musb_init(&musb_board_data);
 	omap_board_config = am335x_evm_config;
