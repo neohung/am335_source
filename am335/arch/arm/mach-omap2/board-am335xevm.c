@@ -2848,7 +2848,7 @@ static void __init am335x_evm_init(void)
 	printk("\033[31m [NEO_DEBUG] %s\033[0m\n", "emmc1 setup");
 	setup_pin_mux(mmc1_common_pin_mux);
         setup_pin_mux(mmc1_dat4_7_pin_mux);
-        am335x_mmc[1].mmc = 2;
+        am335x_mmc[1].mmc = 3;
         am335x_mmc[1].caps = MMC_CAP_8_BIT_DATA;
         am335x_mmc[1].gpio_cd = -EINVAL;
         am335x_mmc[1].gpio_wp = -EINVAL;
@@ -2861,17 +2861,18 @@ static void __init am335x_evm_init(void)
         setup_pin_mux(mmc0_wp_only_pin_mux);
 //
 	setup_pin_mux(neo_wifi_pin_mux);
-        am335x_mmc [2]. mmc = 3 ;               
-        am335x_mmc [2]. name = "wl1271" ;
-        am335x_mmc [2]. caps = MMC_CAP_4_BIT_DATA | MMC_CAP_POWER_OFF_CARD;
-        am335x_mmc [2]. nonremovable = true ;
-        am335x_mmc [2]. gpio_cd = - EINVAL;
-        am335x_mmc [2]. gpio_wp = - EINVAL;
-        am335x_mmc [2]. ocr_mask = MMC_VDD_32_33 | MMC_VDD_33_34 ; /* 3V3 */
+        am335x_mmc[2]. mmc = 2 ;               
+        am335x_mmc[2]. name = "wl1271" ;
+        am335x_mmc[2]. caps = MMC_CAP_4_BIT_DATA | MMC_CAP_POWER_OFF_CARD;
+        am335x_mmc[2]. nonremovable = true ;
+        am335x_mmc[2]. gpio_cd = - EINVAL;
+        am335x_mmc[2]. gpio_wp = - EINVAL;
+        am335x_mmc[2]. ocr_mask = MMC_VDD_32_33 | MMC_VDD_33_34 ; /* 3V3 */
 //---------------------------------------
 	printk("\033[31m [NEO_DEBUG] %s\033[0m\n", "ready to call omap2_hsmmc_init(am335x_mmc)");
         omap2_hsmmc_init(am335x_mmc);
 //---------------------------------------        
+/*
 	am335xevm_wlan_data.wlan_enable_gpio = GPIO_TO_PIN(1, 29);
         am335xevm_wlan_data.bt_enable_gpio = GPIO_TO_PIN(3, 21);
         am335xevm_wlan_data.irq = OMAP_GPIO_IRQ(AM335XEVM_SK_WLAN_IRQ_GPIO);
@@ -2895,6 +2896,7 @@ static void __init am335x_evm_init(void)
         }
 	pdata->slots[0].set_power = neo_wl_set_power;
 	printk("\033[31m [NEO_DEBUG] am335x_evm_get_id()=%d, and EVM_SK=%d\033[0m\n", am335x_evm_get_id(), EVM_SK);
+*/
 //
 
 
