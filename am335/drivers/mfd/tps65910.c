@@ -138,7 +138,7 @@ static int tps65910_i2c_probe(struct i2c_client *i2c,
 	struct tps65910_platform_data *init_data;
 	int ret = 0;
 	unsigned char buff;
-
+	printk("[NEO_DEBUG]%s\n",__func__);
 	pmic_plat_data = dev_get_platdata(&i2c->dev);
 	if (!pmic_plat_data)
 		return -EINVAL;

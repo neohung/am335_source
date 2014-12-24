@@ -2848,7 +2848,7 @@ static void __init am335x_evm_init(void)
 	printk("\033[31m [NEO_DEBUG] %s\033[0m\n", "emmc1 setup");
 	setup_pin_mux(mmc1_common_pin_mux);
         setup_pin_mux(mmc1_dat4_7_pin_mux);
-        am335x_mmc[1].mmc = 3;
+        am335x_mmc[1].mmc = 2;
         am335x_mmc[1].caps = MMC_CAP_8_BIT_DATA;
         am335x_mmc[1].gpio_cd = -EINVAL;
         am335x_mmc[1].gpio_wp = -EINVAL;
@@ -2861,7 +2861,7 @@ static void __init am335x_evm_init(void)
         setup_pin_mux(mmc0_wp_only_pin_mux);
 //
 	setup_pin_mux(neo_wifi_pin_mux);
-        am335x_mmc[2]. mmc = 2 ;               
+        am335x_mmc[2]. mmc = 3 ;               
         am335x_mmc[2]. name = "wl1271" ;
         am335x_mmc[2]. caps = MMC_CAP_4_BIT_DATA | MMC_CAP_POWER_OFF_CARD;
         am335x_mmc[2]. nonremovable = true ;

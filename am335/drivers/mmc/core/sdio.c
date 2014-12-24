@@ -769,14 +769,15 @@ int mmc_attach_sdio(struct mmc_host *host)
 	int err, i, funcs;
 	u32 ocr;
 	struct mmc_card *card;
-
+        printk("[NEO] call %s\n", __func__);
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
 
 	err = mmc_send_io_op_cond(host, 0, &ocr);
-	if (err)
+	if (err){
+		printk("[NEO] call mmc_send_io_cond() but return err!!!\n");
 		return err;
-
+	}
 	mmc_attach_bus(host, &mmc_sdio_ops);
 	if (host->ocr_avail_sdio)
 		host->ocr_avail = host->ocr_avail_sdio;
@@ -805,9 +806,11 @@ int mmc_attach_sdio(struct mmc_host *host)
 	/*
 	 * Detect and init the card.
 	 */
+	printk("[NEO] try to call mmc_sdio_init_card()\n");
 	err = mmc_sdio_init_card(host, host->ocr, NULL, 0);
 	if (err)
 		goto err;
+	printk("[NEO] mmc_sdio_init_card() success\n");
 	card = host->card;
 
 	/*

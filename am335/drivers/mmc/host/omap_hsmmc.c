@@ -267,7 +267,6 @@ static int omap_hsmmc_1_set_power(struct device *dev, int slot, int power_on,
 	struct omap_hsmmc_host *host =
 		platform_get_drvdata(to_platform_device(dev));
 	int ret;
-
 	if (mmc_slot(host).before_set_reg)
 		mmc_slot(host).before_set_reg(dev, slot, power_on, vdd);
 
@@ -288,6 +287,7 @@ static int omap_hsmmc_235_set_power(struct device *dev, int slot, int power_on,
 	struct omap_hsmmc_host *host =
 		platform_get_drvdata(to_platform_device(dev));
 	int ret = 0;
+	printk("-------------[NEO]----omap_hsmmc_235_set_power()--------\n");
 
 	/*
 	 * If we don't see a Vcc regulator, assume it's a fixed
@@ -296,9 +296,10 @@ static int omap_hsmmc_235_set_power(struct device *dev, int slot, int power_on,
 	if (!host->vcc)
 		return 0;
 
-	if (mmc_slot(host).before_set_reg)
+	if (mmc_slot(host).before_set_reg){
+	printk("-------------[NEO]----call before_set_reg()--------\n");
 		mmc_slot(host).before_set_reg(dev, slot, power_on, vdd);
-
+	}
 	/*
 	 * Assume Vcc regulator is used only to power the card ... OMAP
 	 * VDDS is used to power the pins, optionally with a transceiver to
@@ -312,29 +313,34 @@ static int omap_hsmmc_235_set_power(struct device *dev, int slot, int power_on,
 	 * eMMC cards it represents VccQ.  Sometimes transceivers or SDIO
 	 * chips/cards need an interface voltage rail too.
 	 */
+
 	if (power_on) {
-		ret = mmc_regulator_set_ocr(host->mmc, host->vcc, vdd);
+		printk("-------------[NEO]----now it is power_on==true--------\n");
+		
+		//ret = mmc_regulator_set_ocr(host->mmc, host->vcc, vdd);
 		/* Enable interface voltage rail, if needed */
-		if (ret == 0 && host->vcc_aux) {
-			ret = regulator_enable(host->vcc_aux);
+		//if (ret == 0 && host->vcc_aux) {
+			/*ret = regulator_enable(host->vcc_aux);
 			if (ret < 0)
 				ret = mmc_regulator_set_ocr(host->mmc,
-							host->vcc, 0);
-		}
+							host->vcc, 0);*/
+	//	}
 	} else {
+		printk("-------------[NEO]----now it is power_on==false--------\n");
 		/* Shut down the rail */
-		if (host->vcc_aux)
+		/*if (host->vcc_aux)
 			ret = regulator_disable(host->vcc_aux);
-		if (!ret) {
+		if (!ret) {*/
 			/* Then proceed to shut down the local regulator */
-			ret = mmc_regulator_set_ocr(host->mmc,
+			/*ret = mmc_regulator_set_ocr(host->mmc,
 						host->vcc, 0);
-		}
+		}*/
 	}
 
-	if (mmc_slot(host).after_set_reg)
+	if (mmc_slot(host).after_set_reg){
+		printk("-------------[NEO]----call after_set_reg()--------\n");
 		mmc_slot(host).after_set_reg(dev, slot, power_on, vdd);
-
+	}
 	return ret;
 }
 

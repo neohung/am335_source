@@ -2117,6 +2117,7 @@ void mmc_rescan(struct work_struct *work)
 
 	mmc_bus_get(host);
 
+	printk("[NEO] call mmc_rescan() and host name is %s\n", mmc_hostname(host));
 	/*
 	 * if there is a _removable_ card registered, check whether it is
 	 * still present
@@ -2148,7 +2149,7 @@ void mmc_rescan(struct work_struct *work)
 
 	if (host->ops->get_cd && host->ops->get_cd(host) == 0)
 		goto out;
-
+	printk("[NEO] mmc_hostname is %s, get_cd(host) != 0\n", mmc_hostname(host));
 	mmc_claim_host(host);
 	for (i = 0; i < ARRAY_SIZE(freqs); i++) {
 		if (!mmc_rescan_try_freq(host, max(freqs[i], host->f_min)))

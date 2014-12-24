@@ -865,6 +865,7 @@ static __devinit int tps65910_probe(struct platform_device *pdev)
 	struct tps65910_board *pmic_plat_data;
 	int i, err;
 
+	printk("[NEO_DEBUG] %s\n",__func__);
 	pmic_plat_data = dev_get_platdata(tps65910->dev);
 	if (!pmic_plat_data)
 		return -EINVAL;

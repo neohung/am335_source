@@ -1143,7 +1143,7 @@ int mmc_attach_sd(struct mmc_host *host)
 
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
-
+	printk("[NEO] call %s()\n", __func__);
 	/* Make sure we are at 3.3V signalling voltage */
 	err = mmc_set_signal_voltage(host, MMC_SIGNAL_VOLTAGE_330, false);
 	if (err)
@@ -1154,9 +1154,10 @@ int mmc_attach_sd(struct mmc_host *host)
 		host->ops->enable_preset_value(host, false);
 
 	err = mmc_send_app_op_cond(host, 0, &ocr);
-	if (err)
+	if (err){
+		printk("[NEO] call mmc_send_app_op_cond() but return err!!!\n");
 		return err;
-
+	}
 	mmc_sd_attach_bus_ops(host);
 	if (host->ocr_avail_sd)
 		host->ocr_avail = host->ocr_avail_sd;
@@ -1204,10 +1205,11 @@ int mmc_attach_sd(struct mmc_host *host)
 	/*
 	 * Detect and init the card.
 	 */
+	 printk("[NEO] try to call mmc_sd_init_card()\n");
 	err = mmc_sd_init_card(host, host->ocr, NULL);
 	if (err)
 		goto err;
-
+	printk("[NEO] mmc_sd_init_card() success\n");
 	mmc_release_host(host);
 	err = mmc_add_card(host->card);
 	mmc_claim_host(host);

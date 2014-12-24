@@ -1264,7 +1264,7 @@ int mmc_attach_mmc(struct mmc_host *host)
 {
 	int err;
 	u32 ocr;
-
+	printk("[NEO] call %s\n", __func__);
 	BUG_ON(!host);
 	WARN_ON(!host->claimed);
 
@@ -1273,9 +1273,10 @@ int mmc_attach_mmc(struct mmc_host *host)
 		mmc_set_bus_mode(host, MMC_BUSMODE_OPENDRAIN);
 
 	err = mmc_send_op_cond(host, 0, &ocr);
-	if (err)
+	if (err){
+		printk("[NEO] call mmc_send_op_cond() but return err!!!\n");
 		return err;
-
+	}
 	mmc_attach_bus_ops(host);
 	if (host->ocr_avail_mmc)
 		host->ocr_avail = host->ocr_avail_mmc;
@@ -1313,10 +1314,12 @@ int mmc_attach_mmc(struct mmc_host *host)
 	/*
 	 * Detect and init the card.
 	 */
+	printk("[NEO] try to call mmc_init_card()\n");
 	err = mmc_init_card(host, host->ocr, NULL);
 	if (err)
 		goto err;
 
+	printk("[NEO] mmc_init_card() success\n");
 	mmc_release_host(host);
 	err = mmc_add_card(host->card);
 	mmc_claim_host(host);

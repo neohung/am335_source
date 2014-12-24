@@ -31,9 +31,11 @@ int mmc_send_io_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr)
 	cmd.flags = MMC_RSP_SPI_R4 | MMC_RSP_R4 | MMC_CMD_BCR;
 
 	for (i = 100; i; i--) {
+		printk("[NEO] call mmc_wait_for_cmd() %d\n", i);
 		err = mmc_wait_for_cmd(host, &cmd, MMC_CMD_RETRIES);
 		if (err)
 			break;
+		printk("[NEO] finish mmc_wait_for_cmd() %d and err=0\n", i);
 
 		/* if we're just probing, do a single pass */
 		if (ocr == 0)
